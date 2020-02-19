@@ -1,0 +1,538 @@
+######################################           WIZUALIZACJA I RAPRTOWANIE ANALIZ STATYSTYCZNYCH           ################################################           
+######################################                 Gdzie zlokalizowaÄ instytut badawczy                 ################################################           
+
+library(eurostat)
+library(rvest)
+library(xml2)
+library(ggplot2)
+library(dplyr)
+library(directlabels)
+library(ggrepel)
+library(ggridges)
+library(viridis)
+library(RColorBrewer)
+library(fmsb)
+
+toc <- get_eurostat_toc()
+
+str(toc)
+summary(toc)
+head(toc)
+head(toc[which(is.na(data$`last update of data`) == F),], n=20L)
+
+length(unique(toc$title))
+
+search_eurostat("GDP", type="table")# <- tec00114
+search_eurostat("Gini", type="table")# <- tessi190
+search_eurostat("population", type = "table")# <- foriegn population - tps00178
+                                                    # <- air pollution - 	t2020_rn210
+search_eurostat("crime", type="table") # <- sdg_16_20
+search_eurostat("transport", type="table") # <- sdg_09_50	
+search_eurostat("public", type="table")
+search_eurostat("life", type="table")# <- healty life by 65 - tepsr_sp320
+search_eurostat("unemployment", type="table") # <- unemployment rate - 	tipslm70 / tps00203
+
+ct <- c("CY", "CZ", "EE", "LT", "LV", "MT", "PL", "SK", "SI", "HU", "BG", "RO", "HR") # <- kraje, ktÃ³re doÅÄczyÅy do UE 2004-2019
+
+#EE, PL, BG, CZ, RO
+
+ct2 <- c("BG", "CZ", "EE", "PL", "RO")
+
+GDP <- get_eurostat(id="tec00115", time_format="raw",
+                    filters = list(geo=ct2))
+
+length(unique(GDP$geo)) 
+
+Gini <- get_eurostat(id="tessi190", time_format = "raw",
+                     filters = list(geo=ct2))
+
+foreign_pop <- get_eurostat(id="tps00178", time_format = "raw",
+                            filters = list(geo=ct2))
+
+unemployment <- get_eurostat(id="tps00203", time_format = 'raw',
+                             filters = list(geo=ct2))
+
+air_pollution <- get_eurostat(id="t2020_rn210", time_format = "raw",
+                              filters = list(geo=ct2))
+
+crime <- get_eurostat(id="sdg_16_20", time_format = "raw",
+                      filters = list(geo=ct2))
+
+transport <- get_eurostat(id="sdg_09_50", time_format = "raw",
+                          filters = list(geo=ct2))
+
+healthy_life <- get_eurostat(id="tepsr_sp320", time_format = "raw",
+                             filters = list(geo=ct2))
+
+
+
+######################################                           Air Pollution                          ################################################           
+
+
+# Urban population exposure to air pollution by particulate matter.
+
+
+str(air_pollution)
+
+air_pollution
+
+
+years <- as.factor(seq(2005, 2019))
+
+ggplot(air_pollution, aes(x=as.factor(time), y=values, group = geo, color=geo)) + 
+  geom_line(size=2.3, alpha=0.75) +
+  facet_wrap(~airpol, ncol=1) +
+  ggtitle("Air Pollution EU 13") +
+  theme(plot.title=element_text(hjust = 0.5), panel.background = element_rect(fill='aliceblue'), strip.background = 
+          element_rect(fill='white')) +
+  xlab("Years") +
+  ylab("Values") +
+  xlim(as.character(seq(2005, 2017))) +
+  ylim(min(air_pollution$values),max(air_pollution$values)) +
+  geom_label_repel(air_pollution, mapping = aes(label=ifelse(time==2017, values, NA)), segment.color = NA, size=5) +
+  scale_color_discrete(name="Countries")
+  
+
+######################################                             Crime                              ################################################           
+
+
+# The indicator shows the share of the population who reported that they face the problem of crime, violence or vandalism in their 
+# local area. This describes the situation where the respondent feels crime, violence or vandalism in the area to be a problem for 
+# the household, although this perception is not necessarily based on personal experience.
+
+
+str(crime)
+head(crime)
+
+unique(crime$incgrp)
+
+
+total_crime <- crime[which(crime$incgrp=="TOTAL"),]
+below_60_crime <- crime[which(crime$incgrp=="B_MD60"),]
+above_60_crime <- crime[which(crime$incgrp=="A_MD60"),]
+
+distinct_crime <- data.frame(rbind(below_60_crime, above_60_crime))
+
+
+ggplot(total_crime, aes(x = values, y = geo, fill = ..x..)) +
+  geom_density_ridges_gradient(scale = 2, rel_min_height = 0.01) +
+  scale_fill_viridis(alpha=0.7, name = "% of population", begin=1, end=0) +
+  labs(title = 'Crimes', subtitle = 'Population reporting occurrence of crime, violence or vandalism in their area', x="% of population", y="Countries") +
+  theme(plot.title=element_text(hjust = 0.5), plot.subtitle=element_text(hjust=0.5)) 
+  
+ggplot(distinct_crime, aes(x=values, fill=incgrp)) +
+  facet_wrap(~geo) +
+  geom_density(alpha = 0.5) +
+  scale_fill_discrete(name="") +
+  labs(title = "Countries", subtitle="Above vs below 60% of median equivalised income ", x="% of population") +
+  theme(plot.subtitle=element_text(hjust=0.5), plot.title=element_text(hjust=0.5)) 
+
+
+# Wszystkie kraje pojedynczo
+
+geo_list <- unique(distinct_crime$geo)
+
+for(i in seq_along(geo_list))
+{
+  plot <- ggplot(distinct_crime[which(distinct_crime$geo==geo_list[i]),], aes(x=values, fill=incgrp)) + 
+    geom_density(alpha = 0.5) + 
+    labs(title = geo_list[i], subtitle="Above vs below 60% of median equivalised income ", x="% of population") +
+    theme(plot.subtitle=element_text(hjust=0.5), plot.title=element_text(hjust=0.5)) 
+
+  print(plot)
+  }
+
+# Wszystkie kraje A_MD60 i B_MD60
+
+ggplot(distinct_crime, aes(x = values, y=geo, fill = incgrp)) +
+  geom_density_ridges(scale = 2, rel_min_height = 0.01, alpha=0.6) +
+  labs(title = 'Crimes', subtitle = 'Population reporting occurrence of crime, violence or vandalism in their area', x="% of population", y="Countries") +
+  theme(plot.title=element_text(hjust = 0.5), plot.subtitle=element_text(hjust=0.5)) 
+
+#Estonia
+
+  ggplot(total_crime[which(total_crime$geo==c("LV", "EE")),], aes(x=as.factor(time), y=values, group = geo, color=geo)) +
+  geom_line(size = 2, alpha=0.8) +
+  geom_label_repel(mapping = aes(label=ifelse(time==2018, geo, NA)), segment.color = NA) +
+  geom_label_repel(mapping = aes(label=ifelse(time==2017, geo, NA)), segment.color = NA) +
+  scale_color_discrete(name="Countries") +
+  ggtitle("Ocurrence of crime in Estonia") +
+  theme(plot.title=element_text(hjust=0.5), panel.background = element_rect(fill='grey98')) +
+  labs(x="Time", y="Values") 
+  
+  
+
+
+######################################                             Foreign Population                              ################################################           
+
+  
+# Short Description: Number of persons born abroad, (according to present time borders), whether in other EU Member States 
+# or non-EU countries, who are usually resident in the reporting country on 1 January of the respective year.
+  
+  
+str(foreign_pop)  
+
+eu_pop <- get_eurostat(id="tps00178", time_format = "raw")
+eu_pop$values <- ifelse(!eu_pop$geo%in%ct2, NA, eu_pop$values)
+eu_pop2018 <- eu_pop[which(eu_pop$time==2018),]
+
+eu_pop2018$values2 <- ifelse(eu_pop2018$values<=100000, "<100000", 
+                      ifelse(eu_pop2018$values<=200000, "<200000", 
+                      ifelse(eu_pop2018$values<=300000, "<300000", 
+                      ifelse(eu_pop2018$values<=400000, "<400000",
+                      ifelse(eu_pop2018$values<=500000, "<500000",
+                      ifelse(eu_pop2018$values<=600000, "<600000", ">6000000")))))) 
+
+
+mapdata <- get_eurostat_geospatial(nuts_level = 0) %>%
+  right_join(eu_pop2018) %>%
+  mutate(cat=cut_to_classes(values, n=4, decimals=1))
+
+
+ggplot(mapdata, aes(fill=values)) +
+  scale_fill_gradient2(name="Foreign population", labels=c('150000','200000','450000','500000','700000', '800000')) +
+  geom_sf(size=0.01) +
+  xlim(c(5,35)) +
+  ylim(c(35,60)) +
+  ggtitle("Foreign Population 2018") +
+  theme(plot.title=element_text(hjust=0.5), panel.background = element_rect(fill="azure"), panel.grid.major = element_blank(), 
+        plot.background = element_rect(fill='azure2'), legend.background = element_rect(fill='azure2'))
+  
+
+ggplot(foreign_pop[which(foreign_pop$time==2018),], aes(x=geo, y=values, label=geo, fill=values)) +
+  geom_bar(stat="identity") +
+  scale_fill_gradient2() +
+  geom_label(mapping = aes(label=ifelse(time==2018, values, NA)), fill="white") +
+  xlab("") +
+  ylab("") +
+  ggtitle("Foreign Population") +
+  theme(plot.title=element_text(hjust=0.5), panel.background = element_rect(fill='white'), panel.border=element_rect(color='black', fill=NA),
+        legend.position = "none", axis.text.x = element_text(size=15), title=element_text(size=15))
+  
+
+
+
+######################################                             GDP                              ################################################           
+
+# Real GDP growth rate - percentage change on previous year
+
+
+str(GDP)
+
+ggplot(GDP, aes(x=time, y=values, group=geo, color=geo)) +
+  geom_line(size=2, alpha=0.9) +
+  scale_color_brewer(name="Countries",palette="Dark2") +
+  xlab("") +
+  ylab("Growth rate") +
+  ggtitle("") +
+  theme(plot.title=element_text(hjust=0.5), panel.background = element_rect(fill='aliceblue')) +
+  geom_label_repel(GDP, mapping = aes(label=ifelse(time==2018, values, NA)), size=10) 
+
+
+
+
+######################################                             Healthy Life                              ################################################           
+
+# Healthy life - The indicator Healthy Life Years (HLY) at age 65 measures the number of years that a person at age 65 is still expected 
+# to live in a healthy condition. 
+
+
+str(life)
+str(healthy_life)
+
+healthy_life2 <- healthy_life[which(healthy_life$indic_he==c("M_65_LE","F_65_LE")),]
+
+
+ggplot(healthy_life, aes(x=time, y=values, group=geo, color=geo)) +
+  geom_line()
+
+
+healthy_life3 <- rbind(healthy_life2[which(healthy_life2$time==2017),], healthy_life2[which(healthy_life2$time==2016),])
+healthy_life3$time <- as.factor("2016-2017")
+hl_M <- healthy_life3[which(healthy_life3$indic_he=="M_65_LE"),]
+hl_F <- healthy_life3[which(healthy_life3$indic_he=="F_65_LE"),]
+
+labs <- c("Females", "Males")
+
+
+ggplot(healthy_life3, aes(x=geo, y=values, label=geo, fill=geo)) +
+  geom_col(alpha=0.5, color='black') +
+  facet_wrap(~indic_he) +
+  scale_fill_brewer(name="Countries", palette="Set1") +
+  theme(panel.background = element_rect(fill='white'), plot.title=element_text(hjust=0.5), strip.background = element_rect(fill='grey95')) +
+  xlab("") +
+  ylab("Years") +
+  ggtitle("Life expectancy") 
+
+
+  
+ggplot(hl_M, aes(x=geo, y=values, label=geo, fill=geo)) +
+  geom_col(alpha=0.5, color='black') +
+  scale_fill_brewer(palette="Set1") +
+  ggtitle("Males Life Expectancy") +
+  theme(panel.background = element_rect(fill='white'), strip.background = element_rect(fill='white'), plot.title=element_text(hjust=.5)) +
+  coord_polar() +
+  xlab("") +
+  ylab("Years") +
+  geom_label(aes(y=values, label=values, size=20))
+
+
+ggplot(hl_F, aes(x=geo, y=values, label=geo, fill=geo)) +
+  geom_col(alpha=0.5, color='black') +
+  scale_fill_brewer(palette="Set1") +
+  theme(panel.background = element_rect(fill='white'), plot.title=element_text(hjust=.5)) +
+  ggtitle('Females Life Expectancy') +
+  coord_polar() +
+  xlab("") +
+  ylab("Values") +
+  geom_label(aes(y=values, label=values, size=20))
+
+
+
+
+######################################                             Gini                              ################################################           
+
+#Gini coefficient of equivalised disposable income - EU-SILC survey
+
+
+str(Gini)
+
+ggplot(Gini, aes(x=time, y=values, group=geo, color=geo)) +
+  geom_line()
+
+Gini1618 <- rbind(Gini[which(Gini$time==2016),], Gini[which(Gini$time==2017),], Gini[which(Gini$time==2018),])
+
+
+
+geo_list <- unique(Gini1618$geo)
+Gini_mean <- is.numeric(0)
+
+for(i in seq_along(geo_list)){
+
+  Gini_mean[i] <- c(mean(Gini1618$values[which(Gini1618$geo==geo_list[i])]))
+  
+}
+
+Gini1618 <- data.frame(geo=ct2, time="2016-2018", values=Gini_mean)
+Gini1618$values <- sapply(Gini1618$values, round, 1)
+
+
+ggplot(Gini1618, aes(x=values, y=geo, color=geo)) +
+  geom_segment(aes(x=0, y=geo, xend=Gini1618$values, yend=Gini1618$geo), color='black', size=1.3, alpha=0.7) +
+  geom_point(size=12) +
+  geom_text(label = Gini1618$values, color='black', size=4) +
+  ggtitle("Mean value 2016-2018") +
+  xlab("") +
+  ylab("") +
+  scale_color_discrete(name="Countries", labels=c("Bulgaria", "Czech Republic", "Estonia", "Poland", "Romania")) +
+  theme(plot.title=element_text(hjust=.5), panel.background = element_rect(fill="grey98"), legend.position = "none") +
+  scale_y_discrete(labels = c('Romania', 'Poland', 'Estonia', 'Czech Repub.', 'Bulgaria'))
+
+  
+  
+
+######################################                             Transport                              ################################################           
+
+#Share of busses and trains in total passenger transport (% of total inland passenger-km) 
+
+# The indicator measures the share of collective transport modes in total inland passenger transport performance, 
+# expressed in passenger-kilometres (pkm). Collective transport modes refer to buses, including coaches and trolley-buses, and trains. 
+# Total inland transport includes transport by passenger cars, buses and coaches, and trains. All data are based on movements within 
+# national territories, regardless of the nationality of the vehicle. The data collection methodology is voluntary and not fully harmonised 
+# at the EU level. Other collective transport modes, such as tram and metro systems, are also not included due to the lack of harmonised data. 
+# For countries, where rail transport statistical legislation does not apply, the totals contain only the share of coaches, buses and trolley 
+# buses.
+
+
+str(transport)
+
+head(transport)
+unique(transport$vehicle)
+
+transport_all <- transport[which(transport$vehicle=='TRN_BUS_TOT_AVD'),]
+bus_train <- transport[which(transport$vehicle!="TRN_BUS_TOT_AVD"),]
+
+transport_eu <- get_eurostat(id="sdg_09_50", time_format = "raw")
+transport_eu$values <- ifelse(!transport_eu$geo%in%ct2, NA, transport_eu$values)
+
+mapdata2 <- get_eurostat_geospatial(nuts_level = 0) %>%
+  left_join(transport_eu) %>%
+  mutate(cat=cut_to_classes(values, n=4, decimals=1))
+
+ggplot(mapdata2[which(mapdata2$time==2017),], aes(fill=values)) +
+  scale_fill_distiller(name="%", palette="Greens", direction=1) +
+  geom_sf(size=0.01) +
+  xlim(c(5,35)) +
+  ylim(c(35,60)) +
+  ggtitle("Passenger Transport 2017") +
+  theme(plot.title=element_text(hjust=0.5), panel.background = element_rect(fill="azure"), panel.grid.major = element_blank(),
+        plot.background = element_rect(fill='azure2'), legend.background = element_rect(fill='azure2')) 
+
+
+ggplot(transport_all, aes(x=time, y=values, group=geo, color=geo)) +
+  geom_line(size=1.5, alpha=0.9) +
+  scale_color_brewer(name="Countries", palette="Set2") +
+  labs(title="Total Passenger Transport", subtitle="2000-2017") +
+  theme(plot.title = element_text(hjust=0.5), plot.subtitle = element_text(hjust=.5), panel.background = element_rect(fill="aliceblue")) +
+  geom_text_repel(aes(x=time, y=values, label=ifelse(transport_all$time==2017, values, "")))
+
+
+
+ggplot(bus_train[which(bus_train$time==2017),], aes(x=geo, y=values, group=geo, fill=geo)) +
+  geom_col(alpha = 0.5, color='black') +
+  scale_fill_brewer(palette="Set3") +
+  coord_polar() +
+  facet_wrap(~vehicle) +
+  labs(title="") +
+  xlab("") +
+  ylab("") +
+  theme(plot.title=element_text(hjust=.5), legend.position="none", panel.background=element_rect(fill='white'), 
+        panel.grid = element_line(color='grey80'), strip.background = element_rect(fill='white')) +
+  geom_label(aes(y=values, label=values, size=20))
+         
+
+
+######################################                             Unemployment                              ################################################           
+
+# Long-term unemployment rate, % of active population aged 15-74
+
+str(unemployment)
+levels(unemployment$unit)
+
+unemployment <- unemployment[which(unemployment$unit=="PC_ACT"),]
+unemployment2018 <- unemployment[which(unemployment$time==2018),]
+
+ggplot(unemployment2018, aes(y=values, x=geo, color=geo)) +
+  geom_segment(aes(x=geo, y=0, xend=unemployment2018$geo, yend=unemployment2018$values), color='black', linetype='longdash', size=2) +
+  geom_point(size=24) +
+  geom_text(label=unemployment2018$values, color='black', size=4) +
+  labs(title="Unemployment Rate", subtitle="2018") +
+  ylab("%") +
+  xlab("") +
+  scale_color_brewer(palette="Set1") +
+  theme(plot.title=element_text(hjust=.5), plot.subtitle = element_text(hjust=0.5), panel.background = element_rect(fill='grey97'),
+        legend.position="none") +
+  scale_x_discrete(labels = c('Romania', 'Poland', 'Estonia', 'Czech Repub.', 'Bulgaria'))
+
+
+?geom_segment
+ggplot(data, aes(x=x, y=y)) +
+  geom_segment( aes(x=x, xend=x, y=0, yend=y))
+
+
+
+
+
+  ggplot(Gini1618, aes(x=values, y=geo, color=geo)) +
+  geom_segment(aes(x=0, y=geo, xend=Gini1618$values, yend=Gini1618$geo), color='black', size=1.3, alpha=0.7) +
+  geom_point(size=12) +
+  geom_text(label = Gini1618$values, color='black', size=4) +
+  ggtitle("Gini Coefficient") +
+  labs(subtitle = "Mean value 2016-2018") +
+  xlab("") +
+  ylab("") +
+  scale_color_discrete(name="Countries", labels=c("Bulgaria", "Czech Republic", "Estonia", "Poland", "Romania")) +
+  theme(plot.title=element_text(hjust=.5), panel.background = element_rect(fill="grey98"), legend.position = "none", plot.subtitle = element_text(hjust=.5)) +
+  scale_y_discrete(labels = c('Romania', 'Poland', 'Estonia', 'Czech Repub.', 'Bulgaria'))
+
+
+
+
+######################################                             Summary                              ################################################           
+
+str(crime)
+  levels(crime$incgrp)
+  
+
+str(GDP)
+
+str(healthy_life3)
+
+healthy_life5 <- healthy_life3[which(healthy_life3$indic_he=="M_65_LE"),]
+str(Gini1618)
+str(transport_all)
+levels(transport_all$vehicle)
+str(unemployment2018)
+levels(unemployment2018$unit)
+  
+summary <- data.frame(cbind(air_pollution[which(air_pollution$time==2017 & air_pollution$airpol=="PM2_5"),],
+                            crime[which(crime$time==2018 & crime$incgrp=="TOTAL"),],
+                            foreign_pop[which(foreign_pop$time==2018),],
+                            GDP[which(GDP$time==2018),],
+                            values.4=healthy_life5$values,
+                            values.5=Gini1618$values,
+                            transport_all[which(transport_all$vehicle=="TRN_BUS_TOT_AVD" & transport_all$time==2017),],
+                            values.7=unemployment2018$values
+                            ))
+
+
+summary <- select(summary, -starts_with("time"))
+summary_v <- select(summary, starts_with("value"))
+summary <- cbind(ct2, summary_v)
+
+
+
+summary <- summary %>%
+  rename(
+    Countries = ct2,
+    AirPollution = values,
+    Crime = values.1,
+    ForeignPopulation = values.2,
+    GPD = values.3,
+    LifeExpectancy = values.4,
+    GiniCoefficient = values.5,
+    Transport = values.6,
+    Unemployment = values.7
+  )
+
+summary <- select(summary, -c(1))
+
+
+
+first_row <- c(25, 22, 700000, 5.1, 17, 40, 27, 6)
+second_row <- c(0, 0, 100000, 2, 14, 13, 2, 2)
+
+
+summary <- rbind(first_row, second_row, summary)
+
+
+row.names(summary) <- c(1, 2, "BG", "CZ", "EE", "PL", "RO")
+
+
+radarchart(summary, plwd=4 , plty=1, cglcol="grey", cglty=1, axislabcol="grey") 
+
+legend(x=0.7, y=1, legend=rownames(summary[-c(1,2),]), col=c("black", "red", "green", "blue", "cyan"), bty = "n", pch=20, text.col = "grey50", cex=1.2, 
+       pt.cex=3, xjust=-1.1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
